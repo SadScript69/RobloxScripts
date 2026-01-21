@@ -1,6 +1,6 @@
 -- =====================================
 -- Auto Snowflake + Money Farm avec Stats HUD
--- + Discord Webhook Injection Log
+-- + Discord Webhook Injection Log (WORKING)
 -- =====================================
 
 local Players = game:GetService("Players")
@@ -159,31 +159,37 @@ local startSnowflakes = tonumber(SnowflakeLabel.Text) or 0
 -- =====================================
 
 local function sendWebhook()
-	pcall(function()
-		local data = {
-			username = "Script Logger",
-			embeds = {{
-				title = "📥 Script Injecté",
-				color = 5793266,
-				fields = {
-					{ name = "🎮 Jeu", value = "Dress To Impress", inline = true },
-					{ name = "👤 Joueur", value = player.Name, inline = true },
-					{ name = "💰 Money", value = MoneyLabel.Text, inline = true },
-					{ name = "🆔 UserId", value = tostring(player.UserId), inline = true }
-				},
-				timestamp = DateTime.now():ToIsoDate()
-			}}
-		}
+	if not request then
+		warn("Executor ne supporte pas HTTP request")
+		return
+	end
 
-		HttpService:PostAsync(
-			WEBHOOK_URL,
-			HttpService:JSONEncode(data),
-			Enum.HttpContentType.ApplicationJson
-		)
-	end)
+	local data = {
+		username = "Script Logger",
+		embeds = {{
+			title = "📥 Script Injecté",
+			color = 5793266,
+			fields = {
+				{ name = "🎮 Jeu", value = "Dress To Impress", inline = true },
+				{ name = "👤 Joueur", value = player.Name, inline = true },
+				{ name = "💰 Money", value = MoneyLabel.Text, inline = true },
+				{ name = "🆔 UserId", value = tostring(player.UserId), inline = true }
+			},
+			timestamp = DateTime.now():ToIsoDate()
+		}}
+	}
+
+	request({
+		Url = WEBHOOK_URL,
+		Method = "POST",
+		Headers = {
+			["Content-Type"] = "application/json"
+		},
+		Body = HttpService:JSONEncode(data)
+	})
 end
 
--- envoi UNE seule fois après injection
+-- envoi UNE seule fois à l'injection
 task.delay(2, sendWebhook)
 
 -- =====================================
