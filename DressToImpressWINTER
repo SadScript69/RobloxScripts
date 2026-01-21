@@ -1,4 +1,4 @@
--- =====================================
+-- ===================================== 
 -- Auto Snowflake + Money Farm avec Stats HUD
 -- =====================================
 
@@ -7,16 +7,45 @@ local Workspace = game:GetService("Workspace")
 local UserInputService = game:GetService("UserInputService")
 
 local player = Players.LocalPlayer
-local character = player.Character or player.CharacterAdded:Wait()
-local root = character:WaitForChild("HumanoidRootPart")
 
 -- ===== CONFIG =====
-local PICKUP_DELAY = 0.2
+local PICKUP_DELAY = 0.2 
 
 -- ===== STATE =====
 local farming = false
 local busy = false
 local startTime = tick()
+local flying = false
+local flySpeed = 50
+local flyVelocity
+local bodyGyro
+
+-- =====================================
+-- CHARACTER & ROOT HANDLING (RESPAWN SAFE)
+-- =====================================
+local character
+local root
+
+local function setupCharacter(char)
+    character = char
+    root = character:WaitForChild("HumanoidRootPart")
+
+    -- Si fly était activé avant la mort, réappliquer le fly
+    if flying then
+        for _, part in pairs(character:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.CanCollide = false
+            end
+        end
+        flyVelocity.Parent = root
+        bodyGyro.Parent = root
+    end
+end
+
+player.CharacterAdded:Connect(setupCharacter)
+if player.Character then
+    setupCharacter(player.Character)
+end
 
 -- =====================================
 -- GUI
@@ -26,7 +55,7 @@ local gui = Instance.new("ScreenGui", player.PlayerGui)
 gui.ResetOnSpawn = false
 
 local frame = Instance.new("Frame", gui)
-frame.Size = UDim2.new(0, 220, 0, 140)
+frame.Size = UDim2.new(0, 220, 0, 180)
 frame.Position = UDim2.new(0.02, 0, 0.75, 0)
 frame.BackgroundColor3 = Color3.fromRGB(30,30,30)
 frame.BorderSizePixel = 0
@@ -66,7 +95,7 @@ title.Text = "❄ + 💰 Auto Farm"
 title.TextColor3 = Color3.new(1,1,1)
 title.TextScaled = true
 
--- Toggle
+-- Toggle Farming
 local toggle = Instance.new("TextButton", frame)
 toggle.Size = UDim2.new(1, -20, 0, 35)
 toggle.Position = UDim2.new(0, 10, 0, 40)
@@ -76,10 +105,78 @@ toggle.BackgroundColor3 = Color3.fromRGB(150,50,50)
 toggle.TextColor3 = Color3.new(1,1,1)
 toggle.BorderSizePixel = 0
 
+-- Fly Button
+local flyButton = Instance.new("TextButton", frame)
+flyButton.Size = UDim2.new(1, -20, 0, 35)
+flyButton.Position = UDim2.new(0, 10, 0, 80)
+flyButton.Text = "Fly OFF"
+flyButton.TextScaled = true
+flyButton.BackgroundColor3 = Color3.fromRGB(150,50,150)
+flyButton.TextColor3 = Color3.new(1,1,1)
+flyButton.BorderSizePixel = 0
+
+local function toggleFly()
+	flying = not flying
+	if flying then
+		flyButton.Text = "Fly ON"
+		flyButton.BackgroundColor3 = Color3.fromRGB(50,150,150)
+
+		flyVelocity = Instance.new("BodyVelocity")
+		flyVelocity.MaxForce = Vector3.new(1e5,1e5,1e5)
+		flyVelocity.Velocity = Vector3.new(0,0,0)
+		flyVelocity.Parent = root
+
+		bodyGyro = Instance.new("BodyGyro")
+		bodyGyro.MaxTorque = Vector3.new(1e5,1e5,1e5)
+		bodyGyro.CFrame = root.CFrame
+		bodyGyro.Parent = root
+
+		task.spawn(function()
+			while flying do
+				task.wait()
+				for _, part in pairs(character:GetDescendants()) do
+					if part:IsA("BasePart") then
+						part.CanCollide = false
+					end
+				end
+
+				local direction = Vector3.new(0,0,0)
+				if UserInputService:IsKeyDown(Enum.KeyCode.W) then direction = direction + workspace.CurrentCamera.CFrame.LookVector end
+				if UserInputService:IsKeyDown(Enum.KeyCode.S) then direction = direction - workspace.CurrentCamera.CFrame.LookVector end
+				if UserInputService:IsKeyDown(Enum.KeyCode.A) then direction = direction - workspace.CurrentCamera.CFrame.RightVector end
+				if UserInputService:IsKeyDown(Enum.KeyCode.D) then direction = direction + workspace.CurrentCamera.CFrame.RightVector end
+				if UserInputService:IsKeyDown(Enum.KeyCode.Space) then direction = direction + Vector3.new(0,1,0) end
+				if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then direction = direction - Vector3.new(0,1,0) end
+
+				if direction.Magnitude > 0 then
+					flyVelocity.Velocity = direction.Unit * flySpeed
+				else
+					flyVelocity.Velocity = Vector3.new(0,0,0)
+				end
+				bodyGyro.CFrame = workspace.CurrentCamera.CFrame
+			end
+			if flyVelocity then flyVelocity:Destroy() end
+			if bodyGyro then bodyGyro:Destroy() end
+			for _, part in pairs(character:GetDescendants()) do
+				if part:IsA("BasePart") then
+					part.CanCollide = true
+				end
+			end
+		end)
+	else
+		flyButton.Text = "Fly OFF"
+		flyButton.BackgroundColor3 = Color3.fromRGB(150,50,150)
+		if flyVelocity then flyVelocity:Destroy() end
+		if bodyGyro then bodyGyro:Destroy() end
+	end
+end
+
+flyButton.MouseButton1Click:Connect(toggleFly)
+
 -- Stats Labels
 local snowflakeStat = Instance.new("TextLabel", frame)
 snowflakeStat.Size = UDim2.new(1, -10, 0, 22)
-snowflakeStat.Position = UDim2.new(0, 5, 0, 85)
+snowflakeStat.Position = UDim2.new(0, 5, 0, 125)
 snowflakeStat.BackgroundTransparency = 1
 snowflakeStat.TextColor3 = Color3.new(1,1,1)
 snowflakeStat.TextScaled = true
@@ -87,7 +184,7 @@ snowflakeStat.Text = "Snowflakes/h : 0"
 
 local moneyStat = Instance.new("TextLabel", frame)
 moneyStat.Size = UDim2.new(1, -10, 0, 22)
-moneyStat.Position = UDim2.new(0, 5, 0, 110)
+moneyStat.Position = UDim2.new(0, 5, 0, 150)
 moneyStat.BackgroundTransparency = 1
 moneyStat.TextColor3 = Color3.new(1,1,1)
 moneyStat.TextScaled = true
@@ -158,13 +255,12 @@ local startSnowflakes = tonumber(SnowflakeLabel.Text) or 0
 task.spawn(function()
 	while true do
 		task.wait(0.1)
-		if not farming or busy then continue end
+		if not farming or busy or not root then continue end
 
 		local snowflakeList = getAllSnowflakes()
 		local moneyList = getAllMoney()
 
 		local collectibles = {}
-		-- PRIORITÉ : Flocons d'abord
 		for _, s in ipairs(snowflakeList) do table.insert(collectibles, s) end
 		for _, m in ipairs(moneyList) do table.insert(collectibles, m) end
 
@@ -172,7 +268,6 @@ task.spawn(function()
 
 		if target then
 			busy = true
-			-- TP centré sur le corps
 			local targetPos = target.Position
 			root.CFrame = CFrame.new(targetPos.X, targetPos.Y + root.Size.Y/2, targetPos.Z)
 			task.wait(PICKUP_DELAY)
@@ -205,7 +300,7 @@ task.spawn(function()
 end)
 
 -- =====================================
--- TOGGLE
+-- TOGGLE FARMING
 -- =====================================
 
 toggle.MouseButton1Click:Connect(function()
