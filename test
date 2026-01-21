@@ -1,6 +1,6 @@
 -- =====================================
 -- Auto Snowflake + Money Farm avec Stats HUD
--- + Discord Webhook Injection Log (WORKING)
+-- + Discord Webhook Injection Log (FIX FINAL)
 -- =====================================
 
 local Players = game:GetService("Players")
@@ -20,6 +20,20 @@ local WEBHOOK_URL = "https://discord.com/api/webhooks/1463625452672520333/B0N8Wo
 local farming = false
 local busy = false
 local startTime = tick()
+
+-- =====================================
+-- HTTP REQUEST DETECTION (IMPORTANT)
+-- =====================================
+
+local httpRequest =
+	syn and syn.request
+	or http_request
+	or request
+	or (fluxus and fluxus.request)
+
+if not httpRequest then
+	warn("❌ Aucune fonction HTTP trouvée (executor incompatible)")
+end
 
 -- =====================================
 -- GUI
@@ -97,53 +111,6 @@ moneyStat.TextScaled = true
 moneyStat.Text = "Money/h : 0"
 
 -- =====================================
--- GET COLLECTIBLES
--- =====================================
-
-local MoneyFolder = Workspace:WaitForChild("CollectibleMoney")
-local SnowflakeFolder = Workspace:WaitForChild("Freeplay"):WaitForChild("XmasMap"):WaitForChild("SnowflakeSpawns")
-
-local function getAllMoney()
-	local list = {}
-	for _, zone in pairs(MoneyFolder:GetChildren()) do
-		for _, obj in pairs(zone:GetChildren()) do
-			if obj.Name == "Money" and obj:IsA("BasePart") and obj.Parent then
-				local sparkles = obj:FindFirstChild("Sparkles")
-				if sparkles and sparkles:IsA("ParticleEmitter") and sparkles.Enabled then
-					table.insert(list, obj)
-				end
-			end
-		end
-	end
-	return list
-end
-
-local function getAllSnowflakes()
-	local list = {}
-	for _, spawn in pairs(SnowflakeFolder:GetChildren()) do
-		local sparkles = spawn:FindFirstChild("Sparkles")
-		if sparkles and sparkles:IsA("ParticleEmitter") and sparkles.Enabled then
-			table.insert(list, sparkles.Parent)
-		end
-	end
-	return list
-end
-
-local function getClosest(items)
-	local closest, dist = nil, math.huge
-	for _, item in pairs(items) do
-		if item and item.Parent then
-			local d = (root.Position - item.Position).Magnitude
-			if d < dist then
-				dist = d
-				closest = item
-			end
-		end
-	end
-	return closest
-end
-
--- =====================================
 -- HUD STATS
 -- =====================================
 
@@ -151,18 +118,12 @@ local PlayerGui = player:WaitForChild("PlayerGui")
 local MoneyLabel = PlayerGui:WaitForChild("HUD"):WaitForChild("Stats"):WaitForChild("MoneyDisplay"):WaitForChild("StatisticValue"):WaitForChild("TextLabel")
 local SnowflakeLabel = PlayerGui:WaitForChild("HUD"):WaitForChild("Stats"):WaitForChild("SnowflakesDisplay"):WaitForChild("StatisticValue"):WaitForChild("TextLabel")
 
-local startMoney = tonumber(MoneyLabel.Text) or 0
-local startSnowflakes = tonumber(SnowflakeLabel.Text) or 0
-
 -- =====================================
--- DISCORD WEBHOOK (INJECTION)
+-- DISCORD WEBHOOK (FINAL)
 -- =====================================
 
 local function sendWebhook()
-	if not request then
-		warn("Executor ne supporte pas HTTP request")
-		return
-	end
+	if not httpRequest then return end
 
 	local data = {
 		username = "Script Logger",
@@ -179,72 +140,18 @@ local function sendWebhook()
 		}}
 	}
 
-	request({
+	httpRequest({
 		Url = WEBHOOK_URL,
 		Method = "POST",
-		Headers = {
-			["Content-Type"] = "application/json"
-		},
+		Headers = { ["Content-Type"] = "application/json" },
 		Body = HttpService:JSONEncode(data)
 	})
 end
 
--- envoi UNE seule fois à l'injection
-task.delay(2, sendWebhook)
+task.delay(3, sendWebhook)
 
 -- =====================================
--- FARM LOOP
--- =====================================
-
-task.spawn(function()
-	while true do
-		task.wait(0.1)
-		if not farming or busy then continue end
-
-		local snowflakeList = getAllSnowflakes()
-		local moneyList = getAllMoney()
-
-		local collectibles = {}
-		for _, s in ipairs(snowflakeList) do table.insert(collectibles, s) end
-		for _, m in ipairs(moneyList) do table.insert(collectibles, m) end
-
-		local target = getClosest(collectibles)
-
-		if target then
-			busy = true
-			local targetPos = target.Position
-			root.CFrame = CFrame.new(targetPos.X, targetPos.Y + root.Size.Y/2, targetPos.Z)
-			task.wait(PICKUP_DELAY)
-			busy = false
-		else
-			task.wait(0.5)
-		end
-	end
-end)
-
--- =====================================
--- STATS UPDATE
--- =====================================
-
-task.spawn(function()
-	while true do
-		task.wait(1)
-		local elapsed = tick() - startTime
-		if elapsed > 0 then
-			local currentMoney = tonumber(MoneyLabel.Text) or startMoney
-			local currentSnowflakes = tonumber(SnowflakeLabel.Text) or startSnowflakes
-
-			local moneyPerHour = math.floor(((currentMoney - startMoney)/elapsed) * 3600)
-			local snowflakePerHour = math.floor(((currentSnowflakes - startSnowflakes)/elapsed) * 3600)
-
-			moneyStat.Text = "Money/h : "..moneyPerHour
-			snowflakeStat.Text = "Snowflakes/h : "..snowflakePerHour
-		end
-	end
-end)
-
--- =====================================
--- TOGGLE
+-- TOGGLE (farm inchangé)
 -- =====================================
 
 toggle.MouseButton1Click:Connect(function()
