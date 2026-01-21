@@ -11,7 +11,7 @@ local character = player.Character or player.CharacterAdded:Wait()
 local root = character:WaitForChild("HumanoidRootPart")
 
 -- ===== CONFIG =====
-local PICKUP_DELAY = 0.5
+local PICKUP_DELAY = 0.2
 
 -- ===== STATE =====
 local farming = false
