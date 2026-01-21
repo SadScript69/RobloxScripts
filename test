@@ -1,49 +1,25 @@
 -- =====================================
--- Auto Snowflake + Money Farm avec Stats HUD
--- + Discord Webhook Injection Log (FIX FINAL)
+-- Auto Snowflake + Money Farm
+-- + Notification In-Game (XENO SAFE)
 -- =====================================
 
 local Players = game:GetService("Players")
-local Workspace = game:GetService("Workspace")
 local UserInputService = game:GetService("UserInputService")
-local HttpService = game:GetService("HttpService")
+local StarterGui = game:GetService("StarterGui")
 
 local player = Players.LocalPlayer
-local character = player.Character or player.CharacterAdded:Wait()
-local root = character:WaitForChild("HumanoidRootPart")
-
--- ===== CONFIG =====
-local PICKUP_DELAY = 0.2
-local WEBHOOK_URL = "https://discord.com/api/webhooks/1463625452672520333/B0N8Wo93OmCrzH-lMbDmr6NElJu-Axw3etIcy5KGJ8Thsy9cX7GEXpFGhhxFUyYQ1fMB"
-
--- ===== STATE =====
-local farming = false
-local busy = false
-local startTime = tick()
-
--- =====================================
--- HTTP REQUEST DETECTION (IMPORTANT)
--- =====================================
-
-local httpRequest =
-	syn and syn.request
-	or http_request
-	or request
-	or (fluxus and fluxus.request)
-
-if not httpRequest then
-	warn("❌ Aucune fonction HTTP trouvée (executor incompatible)")
-end
 
 -- =====================================
 -- GUI
 -- =====================================
 
-local gui = Instance.new("ScreenGui", player.PlayerGui)
+local gui = Instance.new("ScreenGui")
+gui.Name = "AutoFarmGUI"
 gui.ResetOnSpawn = false
+gui.Parent = player:WaitForChild("PlayerGui")
 
 local frame = Instance.new("Frame", gui)
-frame.Size = UDim2.new(0, 220, 0, 140)
+frame.Size = UDim2.new(0, 220, 0, 150)
 frame.Position = UDim2.new(0.02, 0, 0.75, 0)
 frame.BackgroundColor3 = Color3.fromRGB(30,30,30)
 frame.BorderSizePixel = 0
@@ -93,74 +69,53 @@ toggle.BackgroundColor3 = Color3.fromRGB(150,50,50)
 toggle.TextColor3 = Color3.new(1,1,1)
 toggle.BorderSizePixel = 0
 
--- Stats Labels
-local snowflakeStat = Instance.new("TextLabel", frame)
-snowflakeStat.Size = UDim2.new(1, -10, 0, 22)
-snowflakeStat.Position = UDim2.new(0, 5, 0, 85)
-snowflakeStat.BackgroundTransparency = 1
-snowflakeStat.TextColor3 = Color3.new(1,1,1)
-snowflakeStat.TextScaled = true
-snowflakeStat.Text = "Snowflakes/h : 0"
-
-local moneyStat = Instance.new("TextLabel", frame)
-moneyStat.Size = UDim2.new(1, -10, 0, 22)
-moneyStat.Position = UDim2.new(0, 5, 0, 110)
-moneyStat.BackgroundTransparency = 1
-moneyStat.TextColor3 = Color3.new(1,1,1)
-moneyStat.TextScaled = true
-moneyStat.Text = "Money/h : 0"
+-- Status
+local status = Instance.new("TextLabel", frame)
+status.Size = UDim2.new(1, -10, 0, 30)
+status.Position = UDim2.new(0, 5, 0, 85)
+status.BackgroundTransparency = 1
+status.TextColor3 = Color3.new(1,1,1)
+status.TextScaled = true
+status.Text = "Statut : Inactif"
 
 -- =====================================
--- HUD STATS
+-- NOTIFICATION IN-GAME (XENO OK)
 -- =====================================
 
-local PlayerGui = player:WaitForChild("PlayerGui")
-local MoneyLabel = PlayerGui:WaitForChild("HUD"):WaitForChild("Stats"):WaitForChild("MoneyDisplay"):WaitForChild("StatisticValue"):WaitForChild("TextLabel")
-local SnowflakeLabel = PlayerGui:WaitForChild("HUD"):WaitForChild("Stats"):WaitForChild("SnowflakesDisplay"):WaitForChild("StatisticValue"):WaitForChild("TextLabel")
-
--- =====================================
--- DISCORD WEBHOOK (FINAL)
--- =====================================
-
-local function sendWebhook()
-	if not httpRequest then return end
-
-	local data = {
-		username = "Script Logger",
-		embeds = {{
-			title = "📥 Script Injecté",
-			color = 5793266,
-			fields = {
-				{ name = "🎮 Jeu", value = "Dress To Impress", inline = true },
-				{ name = "👤 Joueur", value = player.Name, inline = true },
-				{ name = "💰 Money", value = MoneyLabel.Text, inline = true },
-				{ name = "🆔 UserId", value = tostring(player.UserId), inline = true }
-			},
-			timestamp = DateTime.now():ToIsoDate()
-		}}
-	}
-
-	httpRequest({
-		Url = WEBHOOK_URL,
-		Method = "POST",
-		Headers = { ["Content-Type"] = "application/json" },
-		Body = HttpService:JSONEncode(data)
-	})
+local function notify(msg)
+	pcall(function()
+		StarterGui:SetCore("SendNotification", {
+			Title = "Auto Farm",
+			Text = msg,
+			Duration = 5
+		})
+	end)
 end
 
-task.delay(3, sendWebhook)
+-- Notification à l'injection
+notify("Script injecté avec succès ✅")
+print("[AutoFarm] Script injecté sur", player.Name)
 
 -- =====================================
--- TOGGLE (farm inchangé)
+-- TOGGLE
 -- =====================================
+
+local farming = false
 
 toggle.MouseButton1Click:Connect(function()
 	farming = not farming
+
 	if farming then
 		toggle.Text = "ON"
 		toggle.BackgroundColor3 = Color3.fromRGB(50,150,50)
+		status.Text = "Statut : Farming actif"
+		notify("Auto Farm ACTIVÉ 🟢")
+		print("[AutoFarm] Activé")
 	else
 		toggle.Text = "OFF"
 		toggle.BackgroundColor3 = Color3.fromRGB(150,50,50)
+		status.Text = "Statut : Arrêté"
+		notify("Auto Farm désactivé 🔴")
+		print("[AutoFarm] Désactivé")
 	end
 end)
