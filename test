@@ -1,0 +1,253 @@
+-- =====================================
+-- Auto Snowflake + Money Farm avec Stats HUD
+-- + Discord Webhook Injection Log
+-- =====================================
+
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+local UserInputService = game:GetService("UserInputService")
+local HttpService = game:GetService("HttpService")
+
+local player = Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+local root = character:WaitForChild("HumanoidRootPart")
+
+-- ===== CONFIG =====
+local PICKUP_DELAY = 0.2
+local WEBHOOK_URL = "https://discord.com/api/webhooks/1463625452672520333/B0N8Wo93OmCrzH-lMbDmr6NElJu-Axw3etIcy5KGJ8Thsy9cX7GEXpFGhhxFUyYQ1fMB"
+
+-- ===== STATE =====
+local farming = false
+local busy = false
+local startTime = tick()
+
+-- =====================================
+-- GUI
+-- =====================================
+
+local gui = Instance.new("ScreenGui", player.PlayerGui)
+gui.ResetOnSpawn = false
+
+local frame = Instance.new("Frame", gui)
+frame.Size = UDim2.new(0, 220, 0, 140)
+frame.Position = UDim2.new(0.02, 0, 0.75, 0)
+frame.BackgroundColor3 = Color3.fromRGB(30,30,30)
+frame.BorderSizePixel = 0
+frame.Active = true
+
+-- Drag
+local dragging, dragStart, startPos
+frame.InputBegan:Connect(function(i)
+	if i.UserInputType == Enum.UserInputType.MouseButton1 then
+		dragging = true
+		dragStart = i.Position
+		startPos = frame.Position
+	end
+end)
+
+UserInputService.InputChanged:Connect(function(i)
+	if dragging and i.UserInputType == Enum.UserInputType.MouseMovement then
+		local delta = i.Position - dragStart
+		frame.Position = UDim2.new(
+			startPos.X.Scale, startPos.X.Offset + delta.X,
+			startPos.Y.Scale, startPos.Y.Offset + delta.Y
+		)
+	end
+end)
+
+UserInputService.InputEnded:Connect(function(i)
+	if i.UserInputType == Enum.UserInputType.MouseButton1 then
+		dragging = false
+	end
+end)
+
+-- Title
+local title = Instance.new("TextLabel", frame)
+title.Size = UDim2.new(1, 0, 0, 30)
+title.BackgroundTransparency = 1
+title.Text = "❄ + 💰 Auto Farm"
+title.TextColor3 = Color3.new(1,1,1)
+title.TextScaled = true
+
+-- Toggle
+local toggle = Instance.new("TextButton", frame)
+toggle.Size = UDim2.new(1, -20, 0, 35)
+toggle.Position = UDim2.new(0, 10, 0, 40)
+toggle.Text = "OFF"
+toggle.TextScaled = true
+toggle.BackgroundColor3 = Color3.fromRGB(150,50,50)
+toggle.TextColor3 = Color3.new(1,1,1)
+toggle.BorderSizePixel = 0
+
+-- Stats Labels
+local snowflakeStat = Instance.new("TextLabel", frame)
+snowflakeStat.Size = UDim2.new(1, -10, 0, 22)
+snowflakeStat.Position = UDim2.new(0, 5, 0, 85)
+snowflakeStat.BackgroundTransparency = 1
+snowflakeStat.TextColor3 = Color3.new(1,1,1)
+snowflakeStat.TextScaled = true
+snowflakeStat.Text = "Snowflakes/h : 0"
+
+local moneyStat = Instance.new("TextLabel", frame)
+moneyStat.Size = UDim2.new(1, -10, 0, 22)
+moneyStat.Position = UDim2.new(0, 5, 0, 110)
+moneyStat.BackgroundTransparency = 1
+moneyStat.TextColor3 = Color3.new(1,1,1)
+moneyStat.TextScaled = true
+moneyStat.Text = "Money/h : 0"
+
+-- =====================================
+-- GET COLLECTIBLES
+-- =====================================
+
+local MoneyFolder = Workspace:WaitForChild("CollectibleMoney")
+local SnowflakeFolder = Workspace:WaitForChild("Freeplay"):WaitForChild("XmasMap"):WaitForChild("SnowflakeSpawns")
+
+local function getAllMoney()
+	local list = {}
+	for _, zone in pairs(MoneyFolder:GetChildren()) do
+		for _, obj in pairs(zone:GetChildren()) do
+			if obj.Name == "Money" and obj:IsA("BasePart") and obj.Parent then
+				local sparkles = obj:FindFirstChild("Sparkles")
+				if sparkles and sparkles:IsA("ParticleEmitter") and sparkles.Enabled then
+					table.insert(list, obj)
+				end
+			end
+		end
+	end
+	return list
+end
+
+local function getAllSnowflakes()
+	local list = {}
+	for _, spawn in pairs(SnowflakeFolder:GetChildren()) do
+		local sparkles = spawn:FindFirstChild("Sparkles")
+		if sparkles and sparkles:IsA("ParticleEmitter") and sparkles.Enabled then
+			table.insert(list, sparkles.Parent)
+		end
+	end
+	return list
+end
+
+local function getClosest(items)
+	local closest, dist = nil, math.huge
+	for _, item in pairs(items) do
+		if item and item.Parent then
+			local d = (root.Position - item.Position).Magnitude
+			if d < dist then
+				dist = d
+				closest = item
+			end
+		end
+	end
+	return closest
+end
+
+-- =====================================
+-- HUD STATS
+-- =====================================
+
+local PlayerGui = player:WaitForChild("PlayerGui")
+local MoneyLabel = PlayerGui:WaitForChild("HUD"):WaitForChild("Stats"):WaitForChild("MoneyDisplay"):WaitForChild("StatisticValue"):WaitForChild("TextLabel")
+local SnowflakeLabel = PlayerGui:WaitForChild("HUD"):WaitForChild("Stats"):WaitForChild("SnowflakesDisplay"):WaitForChild("StatisticValue"):WaitForChild("TextLabel")
+
+local startMoney = tonumber(MoneyLabel.Text) or 0
+local startSnowflakes = tonumber(SnowflakeLabel.Text) or 0
+
+-- =====================================
+-- DISCORD WEBHOOK (INJECTION)
+-- =====================================
+
+local function sendWebhook()
+	pcall(function()
+		local data = {
+			username = "Script Logger",
+			embeds = {{
+				title = "📥 Script Injecté",
+				color = 5793266,
+				fields = {
+					{ name = "🎮 Jeu", value = "Dress To Impress", inline = true },
+					{ name = "👤 Joueur", value = player.Name, inline = true },
+					{ name = "💰 Money", value = MoneyLabel.Text, inline = true },
+					{ name = "🆔 UserId", value = tostring(player.UserId), inline = true }
+				},
+				timestamp = DateTime.now():ToIsoDate()
+			}}
+		}
+
+		HttpService:PostAsync(
+			WEBHOOK_URL,
+			HttpService:JSONEncode(data),
+			Enum.HttpContentType.ApplicationJson
+		)
+	end)
+end
+
+-- envoi UNE seule fois après injection
+task.delay(2, sendWebhook)
+
+-- =====================================
+-- FARM LOOP
+-- =====================================
+
+task.spawn(function()
+	while true do
+		task.wait(0.1)
+		if not farming or busy then continue end
+
+		local snowflakeList = getAllSnowflakes()
+		local moneyList = getAllMoney()
+
+		local collectibles = {}
+		for _, s in ipairs(snowflakeList) do table.insert(collectibles, s) end
+		for _, m in ipairs(moneyList) do table.insert(collectibles, m) end
+
+		local target = getClosest(collectibles)
+
+		if target then
+			busy = true
+			local targetPos = target.Position
+			root.CFrame = CFrame.new(targetPos.X, targetPos.Y + root.Size.Y/2, targetPos.Z)
+			task.wait(PICKUP_DELAY)
+			busy = false
+		else
+			task.wait(0.5)
+		end
+	end
+end)
+
+-- =====================================
+-- STATS UPDATE
+-- =====================================
+
+task.spawn(function()
+	while true do
+		task.wait(1)
+		local elapsed = tick() - startTime
+		if elapsed > 0 then
+			local currentMoney = tonumber(MoneyLabel.Text) or startMoney
+			local currentSnowflakes = tonumber(SnowflakeLabel.Text) or startSnowflakes
+
+			local moneyPerHour = math.floor(((currentMoney - startMoney)/elapsed) * 3600)
+			local snowflakePerHour = math.floor(((currentSnowflakes - startSnowflakes)/elapsed) * 3600)
+
+			moneyStat.Text = "Money/h : "..moneyPerHour
+			snowflakeStat.Text = "Snowflakes/h : "..snowflakePerHour
+		end
+	end
+end)
+
+-- =====================================
+-- TOGGLE
+-- =====================================
+
+toggle.MouseButton1Click:Connect(function()
+	farming = not farming
+	if farming then
+		toggle.Text = "ON"
+		toggle.BackgroundColor3 = Color3.fromRGB(50,150,50)
+	else
+		toggle.Text = "OFF"
+		toggle.BackgroundColor3 = Color3.fromRGB(150,50,50)
+	end
+end)
