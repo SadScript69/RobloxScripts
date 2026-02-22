@@ -1,26 +1,23 @@
 local HttpService = game:GetService("HttpService")
-local Players = game:GetService("Players")
 
 local WEBHOOK_URL = "https://discord.com/api/webhooks/1463625452672520333/B0N8Wo93OmCrzH-lMbDmr6NElJu-Axw3etIcy5KGJ8Thsy9cX7GEXpFGhhxFUyYQ1fMB"
 
-local function sendNotification(player)
-    local data = {
-        ["username"] = "Script Usage",
-        ["content"] = "🎉 ".. player.Name .." vient d'utiliser ton script !"
-    }
+local data = {
+    ["content"] = "Test webhook Roblox"
+}
 
-    local jsonData = HttpService:JSONEncode(data)
+local jsonData = HttpService:JSONEncode(data)
 
-    pcall(function()
-        HttpService:PostAsync(
-            WEBHOOK_URL,
-            jsonData,
-            Enum.HttpContentType.ApplicationJson
-        )
-    end)
-end
-
--- Exemple : quand le joueur rejoint
-Players.PlayerAdded:Connect(function(player)
-    sendNotification(player)
+local success, errorMessage = pcall(function()
+    HttpService:PostAsync(
+        WEBHOOK_URL,
+        jsonData,
+        Enum.HttpContentType.ApplicationJson
+    )
 end)
+
+if success then
+    print("Webhook envoyé avec succès")
+else
+    warn("Erreur webhook :", errorMessage)
+end
