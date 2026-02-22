@@ -3,13 +3,13 @@ local HttpService = game:GetService("HttpService")
 local WEBHOOK_URL = "https://discord.com/api/webhooks/1463625452672520333/B0N8Wo93OmCrzH-lMbDmr6NElJu-Axw3etIcy5KGJ8Thsy9cX7GEXpFGhhxFUyYQ1fMB"
 
 local data = {
-    ["content"] = "Test webhook Roblox"
+    ["content"] = "🔥 Le script vient d'être lancé avec succès !"
 }
 
 local jsonData = HttpService:JSONEncode(data)
 
-local success, errorMessage = pcall(function()
-    HttpService:PostAsync(
+local success, result = pcall(function()
+    return HttpService:PostAsync(
         WEBHOOK_URL,
         jsonData,
         Enum.HttpContentType.ApplicationJson
@@ -17,7 +17,7 @@ local success, errorMessage = pcall(function()
 end)
 
 if success then
-    print("Webhook envoyé avec succès")
+    print("✅ Webhook envoyé !")
 else
-    warn("Erreur webhook :", errorMessage)
+    warn("❌ Erreur webhook :", result)
 end
